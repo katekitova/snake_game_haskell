@@ -12,6 +12,7 @@ main :: IO ()
 main = do
   gen <- newStdGen
   best <- loadBestScore
+  applePic <- loadApplePicture
   let gs0 = initialState gen
       gs  = gs0 { bestScore = best }
       widthPx  = round (fromIntegral (boardW gs) * cellSize gs)
@@ -21,6 +22,6 @@ main = do
     black
     60
     gs
-    (\st -> pure (renderGame st))
+    (\st -> pure (renderGame applePic st))
     handleInput
     stepGameIO

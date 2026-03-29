@@ -1,4 +1,4 @@
-module Render (renderGame) where
+module Render (renderGame, loadApplePicture) where
 
 import Graphics.Gloss
 import Types
@@ -8,12 +8,15 @@ modeLabel Classic = "Classic"
 modeLabel Wrap = "Wrap"
 modeLabel MultiFood = "MultiFood"
 
-renderGame :: GameState -> Picture
-renderGame gs | currentScreen gs == Menu = renderMenu gs
+loadApplePicture :: IO Picture
+loadApplePicture = loadBMP "data/apple-pixel.bmp"
+
+renderGame :: Picture -> GameState -> Picture
+renderGame applePic gs | currentScreen gs == Menu = renderMenu gs
   | otherwise = Pictures
         [ renderBoard gs,
           renderGrid gs,
-          renderFood gs,
+          renderFood applePic gs,
           renderSnake gs,
           renderScore gs,
           renderBestScore gs,
@@ -78,8 +81,19 @@ renderSnake gs =
           Pictures (map (renderCell gs (light green)) rest)
         ]
 
-renderFood :: GameState -> Picture
-renderFood gs = Pictures (map (renderCell gs red) (foodCells gs))
+renderFood :: Picture -> GameState -> Picture
+renderFood applePic gs = Pictures (map (renderFoodCell gs applePic) (foodCells gs))
+
+renderFoodCell :: GameState -> Picture -> Cell -> Picture
+renderFoodCell gs applePic (Cell (x, y)) = translate px py $
+    scale scaleFactor scaleFactor $ applePic
+  where
+    size = cellSize gs
+    totalW = fromIntegral (boardW gs) * size
+    totalH = fromIntegral (boardH gs) * size
+    px = fromIntegral x * size - totalW / 2 + size / 2
+    py = fromIntegral y * size - totalH / 2 + size / 2
+    scaleFactor = size / 350
 
 renderCell :: GameState -> Color -> Cell -> Picture
 renderCell gs c (Cell (x, y)) = translate px py $ color c $
