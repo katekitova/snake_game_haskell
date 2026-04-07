@@ -24,6 +24,7 @@ module Logic
 
 import System.Directory (doesFileExist)
 import System.Process (callCommand)
+import System.Info (os)
 import System.Random (StdGen, randomR)
 import Text.Read (readMaybe)
 import Types
@@ -31,28 +32,75 @@ import Types
 bestScoreFile :: FilePath
 bestScoreFile = "data/best_score.txt"
 
+musicPidFile :: FilePath
+musicPidFile = "data/music.pid"
+
 playChewSound :: IO ()
-playChewSound = callCommand "afplay data/chew.wav >/dev/null 2>&1 &"
+playChewSound =
+  case os of
+    "darwin" ->
+      callCommand "afplay data/chew.wav >/dev/null 2>&1 &"
+    "mingw32" ->
+      callCommand "start /B powershell -WindowStyle Hidden -Command \"(New-Object Media.SoundPlayer 'data/chew.wav').PlaySync()\""
+    "linux" ->
+      callCommand "ffplay -nodisp -autoexit data/chew.wav >/dev/null 2>&1 &"
+    _ ->
+      pure ()
 
 playDeathSound :: IO ()
-playDeathSound = callCommand "afplay data/death.wav >/dev/null 2>&1 &"
+playDeathSound =
+  case os of
+    "darwin" ->
+      callCommand "afplay data/death.wav >/dev/null 2>&1 &"
+    "mingw32" ->
+      callCommand "start /B powershell -WindowStyle Hidden -Command \"(New-Object Media.SoundPlayer 'data/death.wav').PlaySync()\""
+    "linux" ->
+      callCommand "ffplay -nodisp -autoexit data/death.wav >/dev/null 2>&1 &"
+    _ ->
+      pure ()
 
 playMenuMusic :: IO ()
-playMenuMusic = do
-  stopAllMusic
-  callCommand "sh -c 'while true; do afplay data/menu.wav; done' >/dev/null 2>&1 &"
+playMenuMusic = playLoopedMusic musicPidFile "data/menu.wav"
 
 playGameMusic :: IO ()
-playGameMusic = do
+playGameMusic = playLoopedMusic musicPidFile "data/background.wav"
+
+playLoopedMusic :: FilePath -> FilePath -> IO ()
+playLoopedMusic pidFile musicFile = do
   stopAllMusic
-  callCommand "sh -c 'while true; do afplay data/background.wav; done' >/dev/null 2>&1 &"
+  case os of
+    "darwin" ->
+      callCommand $
+        "sh -c '(while true; do afplay " ++ musicFile ++ "; done) & echo $! > " ++ pidFile ++ "'"
+    "mingw32" ->
+      callCommand $
+        "powershell -WindowStyle Hidden -Command \"$p = Start-Process powershell -ArgumentList '-WindowStyle Hidden -Command while ($true) { (New-Object Media.SoundPlayer '''"
+        ++ musicFile
+        ++ "''').PlaySync() }' -PassThru; $p.Id | Out-File -Encoding ascii '"
+        ++ pidFile
+        ++ "'\""
+    "linux" ->
+      callCommand $
+        "sh -c '(while true; do ffplay -nodisp -autoexit " ++ musicFile ++ " >/dev/null 2>&1; done) & echo $! > " ++ pidFile ++ "'"
+    _ ->
+      pure ()
 
 stopAllMusic :: IO ()
-stopAllMusic = do
-  callCommand "pkill -f 'afplay data/menu.wav' >/dev/null 2>&1 || true"
-  callCommand "pkill -f 'afplay data/background.wav' >/dev/null 2>&1 || true"
-  callCommand "pkill -f 'while true; do afplay data/menu.wav; done' >/dev/null 2>&1 || true"
-  callCommand "pkill -f 'while true; do afplay data/background.wav; done' >/dev/null 2>&1 || true"
+stopAllMusic =
+  case os of
+    "darwin" -> do
+      callCommand $
+        "sh -c 'if [ -f " ++ musicPidFile ++ " ]; then kill $(cat " ++ musicPidFile ++ ") >/dev/null 2>&1 || true; rm -f " ++ musicPidFile ++ "; fi'"
+      callCommand "pkill afplay >/dev/null 2>&1 || true"
+    "mingw32" -> do
+      callCommand $
+        "powershell -Command \"if (Test-Path '" ++ musicPidFile ++ "') { $pid = Get-Content '" ++ musicPidFile ++ "'; Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue; Remove-Item '" ++ musicPidFile ++ "' -Force -ErrorAction SilentlyContinue }\""
+    "linux" -> do
+      callCommand $
+        "sh -c 'if [ -f " ++ musicPidFile ++ " ]; then kill $(cat " ++ musicPidFile ++ ") >/dev/null 2>&1 || true; rm -f " ++ musicPidFile ++ "; fi'"
+      callCommand "pkill ffplay >/dev/null 2>&1 || true"
+    _ ->
+      pure ()
 
 loadBestScore :: IO Int
 loadBestScore = do

@@ -41,7 +41,10 @@
 
 - [Stack](https://www.haskellstack.org/)
 - Графическое окружение с поддержкой OpenGL (для `gloss`)
-- macOS для аудио (`afplay` и `pkill`)
+- Для аудио:
+  - macOS: `afplay`
+  - Windows: PowerShell
+  - Linux: `ffplay`
 
 ## Сборка и запуск
 
@@ -75,9 +78,6 @@ stack ghci
 - `test/Spec.hs` — тестовый модуль, не используется
 - `data/` — игровые данные и медиа-файлы
 
-## Ограничения
-
-- Аудио-часть платформозависима и ориентирована на macOS.
 
 ## Лицензия
 

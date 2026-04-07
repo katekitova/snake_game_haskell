@@ -27,3 +27,4 @@ main = do
     (\st -> pure (renderGame applePic snakePics st))
     handleInput
     stepGameIO
+  stopAllMusic
