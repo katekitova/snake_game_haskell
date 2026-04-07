@@ -1,7 +1,14 @@
-module Render (renderGame, loadApplePicture) where
+module Render (renderGame, loadApplePicture, loadSnakePictures) where
 
 import Graphics.Gloss
 import Types
+data SnakePictures = SnakePictures
+  { headPic :: Picture,
+    mouthOpenHeadPic :: Picture,
+    deadHeadPic :: Picture,
+    bodyPic :: Picture,
+    tailPic :: Picture
+  }
 
 modeLabel :: GameMode -> String
 modeLabel Classic = "Classic"
@@ -11,13 +18,28 @@ modeLabel MultiFood = "MultiFood"
 loadApplePicture :: IO Picture
 loadApplePicture = loadBMP "data/apple-pixel.bmp"
 
-renderGame :: Picture -> GameState -> Picture
-renderGame applePic gs | currentScreen gs == Menu = renderMenu gs
+loadSnakePictures :: IO SnakePictures
+loadSnakePictures = do
+  h <- loadBMP "data/snake_head.bmp"
+  hm <- loadBMP "data/snake_head_mouth_open.bmp"
+  dh <- loadBMP "data/snake_head_dead.bmp"
+  b <- loadBMP "data/snake_body.bmp"
+  t <- loadBMP "data/snake_tail.bmp"
+  pure SnakePictures
+    { headPic = h,
+      mouthOpenHeadPic = hm,
+      deadHeadPic = dh,
+      bodyPic = b,
+      tailPic = t
+    }
+
+renderGame :: Picture -> SnakePictures -> GameState -> Picture
+renderGame applePic snakePics gs | currentScreen gs == Menu = renderMenu gs
   | otherwise = Pictures
         [ renderBoard gs,
           renderGrid gs,
           renderFood applePic gs,
-          renderSnake gs,
+          renderSnake snakePics gs,
           renderScore gs,
           renderBestScore gs,
           renderMode gs,
@@ -72,14 +94,99 @@ renderGrid gs = color (greyN 0.22) $ Pictures (verticals ++ horizontals)
     horizontals = [ Line [(x0, y0 + fromIntegral i * size), (x0 + w, y0 + fromIntegral i * size)]
       | i <- [0 .. boardH gs]]
 
-renderSnake :: GameState -> Picture
-renderSnake gs =
-    case snakeBody gs of
-      [] -> Blank
-      (h:rest) -> Pictures
-        [ renderCell gs (dark green) h,
-          Pictures (map (renderCell gs (light green)) rest)
-        ]
+renderSnake :: SnakePictures -> GameState -> Picture
+renderSnake pics gs =
+  case snakeBody gs of
+    [] -> Blank
+    [h] -> renderHead pics gs h
+    [h, t] -> Pictures [ renderHead pics gs h, renderTail pics gs [h, t] t]
+    cells ->
+      let h = head cells
+          t = last cells
+          middleTriples = zip3 cells (tail cells) (drop 2 cells)
+      in Pictures
+          [ renderHead pics gs h,
+            Pictures (map (renderBodySegment pics gs) middleTriples),
+            renderTail pics gs cells t]
+
+renderHead :: SnakePictures -> GameState -> Cell -> Picture
+renderHead pics gs cell = renderHeadCell gs sprite angle cell
+  where
+    sprite | gameStatus gs == GameOver = deadHeadPic pics
+      | eatAnimTimer gs > 0 = mouthOpenHeadPic pics
+      | otherwise = headPic pics
+    angle = directionAngle (currentDir gs)
+
+renderHeadCell :: GameState -> Picture -> Float -> Cell -> Picture
+renderHeadCell gs sprite angle (Cell (x, y)) =
+  translate px py $ rotate angle $ scale scaleFactor scaleFactor sprite
+  where
+    size = cellSize gs
+    totalW = fromIntegral (boardW gs) * size
+    totalH = fromIntegral (boardH gs) * size
+    px = fromIntegral x * size - totalW / 2 + size / 2
+    py = fromIntegral y * size - totalH / 2 + size / 2
+    scaleFactor = size / 800
+
+renderBodySegment :: SnakePictures -> GameState -> (Cell, Cell, Cell) -> Picture
+renderBodySegment pics gs (prevCell, curCell, nextCell) =
+  renderBodyCell gs (bodyPic pics) angle curCell
+  where
+    angle = bodyAngle prevCell nextCell
+
+bodyAngle :: Cell -> Cell -> Float
+bodyAngle (Cell (px, py)) (Cell (nx, ny)) | px == nx  = 0 | py == ny  = 90 | otherwise = 0  
+
+renderBodyCell :: GameState -> Picture -> Float -> Cell -> Picture
+renderBodyCell gs sprite angle (Cell (x, y)) =
+  translate px py $
+    rotate angle $
+      scale scaleFactor scaleFactor sprite
+  where
+    size = cellSize gs
+    totalW = fromIntegral (boardW gs) * size
+    totalH = fromIntegral (boardH gs) * size
+    px = fromIntegral x * size - totalW / 2 + size / 2
+    py = fromIntegral y * size - totalH / 2 + size / 2
+    scaleFactor = size / 800
+
+renderTail :: SnakePictures -> GameState -> [Cell] -> Cell -> Picture
+renderTail pics gs cells tailCell = renderTailCell gs (tailPic pics) angle tailCell
+  where
+    angle = tailAngle (tailDirection cells)
+
+renderTailCell :: GameState -> Picture -> Float -> Cell -> Picture
+renderTailCell gs sprite angle (Cell (x, y)) =
+  translate px py $ rotate angle $ scale scaleFactor scaleFactor sprite
+  where
+    size = cellSize gs
+    totalW = fromIntegral (boardW gs) * size
+    totalH = fromIntegral (boardH gs) * size
+    px = fromIntegral x * size - totalW / 2 + size / 2
+    py = fromIntegral y * size - totalH / 2 + size / 2
+    scaleFactor = size / 95
+
+directionAngle :: Direction -> Float
+directionAngle U = 0
+directionAngle R = 90
+directionAngle D = 180
+directionAngle L = -90
+
+tailAngle :: Direction -> Float
+tailAngle U = 0
+tailAngle R = 90
+tailAngle D = 180
+tailAngle L = -90
+
+tailDirection :: [Cell] -> Direction
+tailDirection cells =
+  case reverse cells of
+    (Cell (tx, ty)) : (Cell (px, py)) : _
+      | tx == px && ty > py -> U
+      | tx == px && ty < py -> D
+      | ty == py && tx > px -> R
+      | otherwise -> L
+    _ -> U
 
 renderFood :: Picture -> GameState -> Picture
 renderFood applePic gs = Pictures (map (renderFoodCell gs applePic) (foodCells gs))
@@ -94,16 +201,6 @@ renderFoodCell gs applePic (Cell (x, y)) = translate px py $
     px = fromIntegral x * size - totalW / 2 + size / 2
     py = fromIntegral y * size - totalH / 2 + size / 2
     scaleFactor = size / 350
-
-renderCell :: GameState -> Color -> Cell -> Picture
-renderCell gs c (Cell (x, y)) = translate px py $ color c $
-    rectangleSolid (cellSize gs - 2) (cellSize gs - 2)
-  where
-    size = cellSize gs
-    totalW = fromIntegral (boardW gs) * size
-    totalH = fromIntegral (boardH gs) * size
-    px = fromIntegral x * size - totalW / 2 + size / 2
-    py = fromIntegral y * size - totalH / 2 + size / 2
 
 renderScore :: GameState -> Picture
 renderScore gs = translate (-290) 320 $ scale 0.15 0.15 $

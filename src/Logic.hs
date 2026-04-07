@@ -16,16 +16,43 @@ module Logic
     spawnFood,
     isOpposite,
     loadBestScore,
-    saveBestScore
+    saveBestScore,
+    playMenuMusic,
+    playGameMusic,
+    stopAllMusic
   ) where
 
 import System.Directory (doesFileExist)
+import System.Process (callCommand)
 import System.Random (StdGen, randomR)
 import Text.Read (readMaybe)
 import Types
 
 bestScoreFile :: FilePath
 bestScoreFile = "data/best_score.txt"
+
+playChewSound :: IO ()
+playChewSound = callCommand "afplay data/chew.wav >/dev/null 2>&1 &"
+
+playDeathSound :: IO ()
+playDeathSound = callCommand "afplay data/death.wav >/dev/null 2>&1 &"
+
+playMenuMusic :: IO ()
+playMenuMusic = do
+  stopAllMusic
+  callCommand "sh -c 'while true; do afplay data/menu.wav; done' >/dev/null 2>&1 &"
+
+playGameMusic :: IO ()
+playGameMusic = do
+  stopAllMusic
+  callCommand "sh -c 'while true; do afplay data/background.wav; done' >/dev/null 2>&1 &"
+
+stopAllMusic :: IO ()
+stopAllMusic = do
+  callCommand "pkill -f 'afplay data/menu.wav' >/dev/null 2>&1 || true"
+  callCommand "pkill -f 'afplay data/background.wav' >/dev/null 2>&1 || true"
+  callCommand "pkill -f 'while true; do afplay data/menu.wav; done' >/dev/null 2>&1 || true"
+  callCommand "pkill -f 'while true; do afplay data/background.wav; done' >/dev/null 2>&1 || true"
 
 loadBestScore :: IO Int
 loadBestScore = do
@@ -58,7 +85,8 @@ initialState gen = GameState
     bestScore = 0,
     tickTimer = 0,
     tickDelay = 0.22,
-    rngGen = gen}
+    rngGen = gen,
+    eatAnimTimer = 0}
 
 startGame :: GameState -> GameState
 startGame gs = startGameWithMode (gameMode gs) gs
@@ -78,7 +106,8 @@ startGameWithMode mode gs = gs
       isPaused = False,
       score = 0,
       tickTimer = 0,
-      tickDelay = 0.22}
+      tickDelay = 0.22,
+      eatAnimTimer = 0}
 
 restartGame :: GameState -> GameState
 restartGame = startGame
@@ -100,20 +129,39 @@ normalizeHead gs (Cell (x, y)) =
       | otherwise = n
 
 stepGame :: Float -> GameState -> GameState
-stepGame dt gs | currentScreen gs /= Playing = gs
+stepGame dt gs
+  | currentScreen gs /= Playing = gs
   | gameStatus gs == GameOver = gs
   | isPaused gs = gs
-  | otherwise = let newTimer = tickTimer gs + dt
-      in if newTimer < tickDelay gs
-           then gs { tickTimer = newTimer }
-           else moveSnake gs { tickTimer = 0 }
+  | otherwise =
+      let animTime = max 0 (eatAnimTimer gs - dt)
+          newTimer = tickTimer gs + dt
+      in
+        if newTimer < tickDelay gs
+          then gs
+                { tickTimer = newTimer,
+                  eatAnimTimer = animTime
+                }
+          else moveSnake gs
+                { tickTimer = 0,
+                  eatAnimTimer = animTime
+                }
 
 stepGameIO :: Float -> GameState -> IO GameState
 stepGameIO dt gs = do
   let newState = stepGame dt gs
+  if score newState > score gs
+    then playChewSound
+    else pure ()
+  if gameStatus gs /= GameOver && gameStatus newState == GameOver
+    then do
+      stopAllMusic
+      playDeathSound
+    else pure ()
   if bestScore newState > bestScore gs
-    then saveBestScore (bestScore newState) >> pure newState
-    else pure newState
+    then saveBestScore (bestScore newState)
+    else pure ()
+  pure newState
 
 moveSnake :: GameState -> GameState
 moveSnake gs =
@@ -147,7 +195,8 @@ moveSnake gs =
                     rngGen = newGen,
                     score = newScore,
                     bestScore = max (bestScore movedState) newScore,
-                    tickDelay = newDelay
+                    tickDelay = newDelay,
+                    eatAnimTimer = 0.15
                   }
             else movedState
 

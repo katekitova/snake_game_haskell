@@ -16,6 +16,7 @@ dependencies:
 - gloss
 - directory
 - random
+- process
 
 
 library:

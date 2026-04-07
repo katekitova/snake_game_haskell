@@ -8,10 +8,14 @@ import Types
 
 handleInput :: Event -> GameState -> IO GameState
 handleInput (EventKey (SpecialKey KeyEsc) Down _ _) gs
-    | currentScreen gs == Playing = pure (backToMenu gs)
+    | currentScreen gs == Playing = do
+        playMenuMusic
+        pure (backToMenu gs)
     | otherwise = pure gs
 handleInput (EventKey (SpecialKey KeyEnter) Down _ _) gs
-    | currentScreen gs == Menu = pure (startGame gs)
+    | currentScreen gs == Menu = do
+        playGameMusic
+        pure (startGame gs)
     | otherwise = pure gs
 handleInput (EventKey (Char '1') Down _ _) gs
     | currentScreen gs == Menu = pure (gs { gameMode = Classic })
@@ -41,11 +45,19 @@ handleInput (EventKey (Char 'P') Down _ _) gs
     | currentScreen gs == Playing && gameStatus gs == Running = pure (togglePause gs)
     | otherwise = pure gs
 handleInput (EventKey (Char 'r') Down _ _) gs
-    | currentScreen gs == Playing = pure (restartGame gs)
+    | currentScreen gs == Playing = do
+        playGameMusic
+        pure (restartGame gs)
     | otherwise = pure gs
 handleInput (EventKey (Char 'R') Down _ _) gs
-    | currentScreen gs == Playing = pure (restartGame gs)
+    | currentScreen gs == Playing = do
+        playGameMusic
+        pure (restartGame gs)
     | otherwise = pure gs
-handleInput (EventKey (Char 'q') Down _ _) _ = exitSuccess
-handleInput (EventKey (Char 'Q') Down _ _) _ = exitSuccess
+handleInput (EventKey (Char 'q') Down _ _) _ = do
+    stopAllMusic
+    exitSuccess
+handleInput (EventKey (Char 'Q') Down _ _) _ = do
+    stopAllMusic
+    exitSuccess
 handleInput _ gs = pure gs

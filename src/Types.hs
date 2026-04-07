@@ -41,5 +41,6 @@ data GameState = GameState
     bestScore :: Int,
     tickTimer :: Float,
     tickDelay :: Float,
-    rngGen :: StdGen}
+    rngGen :: StdGen,
+    eatAnimTimer :: Float}
   deriving (Show)
