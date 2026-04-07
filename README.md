@@ -54,11 +54,7 @@ stack run
 ## Полезные команды
 
 ```bash
-# Пересборка при изменениях
 stack build --file-watch
-
-# Тесты
-stack test
 
 stack ghci
 ```
