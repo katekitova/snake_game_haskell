@@ -72,7 +72,7 @@ stack ghci
 
 Cпрайты для змейки и музыка для меню взяты с [проекта на GitHub](https://github.com/LunaTMT/Snake/tree/main/assets)
 
-Фоновая музыка для игры сгенерированы через [SunoAI](https://suno.com)
+Фоновая музыка для игры сгенерирована через [SunoAI](https://suno.com)
 
 
 ## Структура проекта
